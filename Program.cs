@@ -5,83 +5,135 @@ public class HelloWorld
 {
     public static void Main(string[] args)
     {
-        Console.WriteLine("--- Structural Adapter Test ---");
+        Console.WriteLine("--- Strategy Validation Test ---");
 
-        LegacyRectangle legacyItem = new LegacyRectangle(10, 10, 20, 10);
+        Address dummyAddr = new Address();
 
-        IRectangle adapter = new LegacyRectangleAdapter(legacyItem);
+        Order validOrder = new Order(
+            ShippingOptions.ups, 
+            dummyAddr, 
+            dummyAddr, 
+            new ShippingCostStrategyForUPS()
+        );
 
-        Console.WriteLine($"Legacy X: {legacyItem.x} | Legacy W: {legacyItem.w}");
-        
-        Console.WriteLine("--- ADAPTED VALUES ---");
-        Console.WriteLine($"Adapted x1: {adapter.x1}"); 
-        Console.WriteLine($"Adapted y1: {adapter.y1}"); 
-        Console.WriteLine($"Adapted x2: {adapter.x2}"); 
-        Console.WriteLine($"Adapted y2: {adapter.y2}"); 
-    }
-    //interface 
-    public interface IRectangle
-    {
-        int x1 { get; set; }
-        int y1 { get; set; }
-        int x2 { get; set; }
-        int y2 { get; set; }
-    }
-    //class need to adapt 
-    public class LegacyRectangle
-    {
-        public int x {get;set;}
-        public int y {get;set;}
-        public int w {get;set;}
-        public int h {get;set;}
-        public LegacyRectangle(int x,int y, int w, int h)
+        Console.WriteLine($"Valid Order Cost: {validOrder.cost}"); 
+
+        Order invalidOrder = new Order(
+            ShippingOptions.fedex, 
+            dummyAddr, 
+            dummyAddr, 
+            new ShippingCostStrategyForUPS()
+        );
+
+        try
         {
-            this.x=x;
-            this.y=y;
-            this.w=w;
-            this.h=h;
+            Console.WriteLine($"Invalid Order Cost: {invalidOrder.cost}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("\n[Error Caught]: " + ex.Message);
         }
     }
-    public class NewRectangle:IRectangle
+  //shipping class -change method -change the cost-each ethod has it's own strategy for cost 
+  //adress - shipping options -order(get )
+  public class Address
+{
+    public string? ContactName { get; set; }
+    public string? AddressLine { get; set; }
+    public string? City { get; set; }
+    public string? Region { get; set; }
+    public string? Country { get; set; }
+    public string? PostalCode { get; set; }
+}
+    public enum ShippingOptions
     {
-        public int x1 {get;set;}
-        public int y1 {get;set;}
-        public int x2 {get;set;}
-        public int y2 {get;set;}
-        public NewRectangle(int x1,int y1, int x2, int y2)
+        ups,
+        fedex,
+        purulator
+    }
+    public class Order
+    {
+        public ShippingOptions _shippingMethod;
+        public Address _destination;
+        public Address _origin;
+        public IShippingCostStrategy _costStrategy;
+        public Order(ShippingOptions shippingMethod,Address destination,Address origin,IShippingCostStrategy costStrategy)
         {
-            this.x1=x1;
-            this.y1=y1;
-            this.x2=x2;
-            this.y2=y2;
+            _shippingMethod=shippingMethod;
+            _destination=destination;
+            _origin=origin;
+            _costStrategy=costStrategy;
+        }
+        public ShippingOptions ShippingOptions
+        {
+            get
+            {
+                return _shippingMethod;
+            }
+        }
+        public Address Origin
+        {
+            get
+            {
+                return _origin;
+            }
+        }
+        public Address Destination
+        {
+            get
+            {
+                return _destination;
+            }
+        }
+        public Double cost
+        {
+            get
+            {
+                return _costStrategy.CalcShippingCost(this);
+            }
         }
     }
-    public class LegacyRectangleAdapter : IRectangle
+    public interface IShippingCostStrategy
     {
-        private readonly LegacyRectangle _legacy;
-        public LegacyRectangleAdapter(LegacyRectangle legacy)
+        public double CalcShippingCost(Order order);
+    }
+    public class ShippingCostStrategyForUPS : IShippingCostStrategy
+    {
+        public double CalcShippingCost(Order order)
         {
-            _legacy=legacy;
+            if (order.ShippingOptions != ShippingOptions.ups)
+            {
+                throw new InvalidOperationException("Strategy Mismatch: You selected UPS Strategy, but the Order is marked as " + order.ShippingOptions);
+            }
+            
+            return 7.25;
         }
-        public int x1
+    }
+    public class ShippingCostStrategyForFedEX : IShippingCostStrategy
+    {
+        public double CalcShippingCost(Order order)
         {
-            get => _legacy.x;
-            set => _legacy.x=value;
+            // CHECK
+            if (order.ShippingOptions != ShippingOptions.fedex)
+            {
+                throw new InvalidOperationException("Strategy Mismatch: You selected FedEx Strategy, but the Order is marked as " + order.ShippingOptions);
+            }
+
+            return 9.25;
         }
-        public int y1
+    }
+
+    public class ShippingCostStrategyForPurulator : IShippingCostStrategy
+    {
+        public double CalcShippingCost(Order order)
         {
-            get => _legacy.y;
-            set => _legacy.y=value;
-        }
-        public int x2
-        {
-            get => _legacy.x + _legacy.w;
-            set => _legacy.w=value-_legacy.x;
-        }
-        public int y2
-        {
-            get => _legacy.y+ _legacy.h;
-            set => _legacy.h=value-_legacy.y;
+            // CHECK
+            if (order.ShippingOptions != ShippingOptions.purulator)
+            {
+                throw new InvalidOperationException("Strategy Mismatch: You selected Purulator Strategy, but the Order is marked as " + order.ShippingOptions);
+            }
+
+            return 5.00;
         }
     }
 }
