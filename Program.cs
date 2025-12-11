@@ -1,6 +1,7 @@
 ﻿using System.Text;
 using System;
 using Microsoft.Extensions.DependencyInjection;
+using System.Security.Cryptography.X509Certificates;
 
 public class HelloWorld
 {
@@ -16,7 +17,7 @@ public class HelloWorld
 
         // Build the provider
         var serviceProvider = serviceCollection.BuildServiceProvider();
-
+        
         Console.WriteLine("--- DI Strategy Validation Test ---");
 
         Address dummyAddr = new Address();
@@ -25,6 +26,8 @@ public class HelloWorld
 
         // ASK DI: Give me the strategy linked to the key 'ShippingOptions.ups'
         var upsStrategy = serviceProvider.GetRequiredKeyedService<IShippingCostStrategy>(selectedOption);
+        //in case i don't have an enum to distinguish them 
+        IEnumerable<IShippingCostStrategy> _allStrategies; //use foreach to choose
 
         Order validOrder = new Order(
             selectedOption, 
