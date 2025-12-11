@@ -1,38 +1,53 @@
 ﻿using System.Text;
 using System;
+using Microsoft.Extensions.DependencyInjection;
 
 public class HelloWorld
 {
     public static void Main(string[] args)
     {
-        Console.WriteLine("--- Strategy Validation Test ---");
+        //setup DI
+        var serviceCollection = new ServiceCollection();
+
+        // Register 
+        serviceCollection.AddKeyedTransient<IShippingCostStrategy, ShippingCostStrategyForUPS>(ShippingOptions.ups);
+        serviceCollection.AddKeyedTransient<IShippingCostStrategy, ShippingCostStrategyForFedEX>(ShippingOptions.fedex);
+        serviceCollection.AddKeyedTransient<IShippingCostStrategy, ShippingCostStrategyForPurulator>(ShippingOptions.purulator);
+
+        // Build the provider
+        var serviceProvider = serviceCollection.BuildServiceProvider();
+
+        Console.WriteLine("--- DI Strategy Validation Test ---");
 
         Address dummyAddr = new Address();
 
+        var selectedOption = ShippingOptions.ups;
+
+        // ASK DI: Give me the strategy linked to the key 'ShippingOptions.ups'
+        var upsStrategy = serviceProvider.GetRequiredKeyedService<IShippingCostStrategy>(selectedOption);
+
         Order validOrder = new Order(
-            ShippingOptions.ups, 
+            selectedOption, 
             dummyAddr, 
             dummyAddr, 
-            new ShippingCostStrategyForUPS()
+            upsStrategy // DI gave us the correct class
         );
 
-        Console.WriteLine($"Valid Order Cost: {validOrder.cost}"); 
+        Console.WriteLine($"Valid Order Cost ({selectedOption}): {validOrder.cost}"); 
 
-        Order invalidOrder = new Order(
-            ShippingOptions.fedex, 
+        var anotherOption = ShippingOptions.fedex;
+        
+        // We just change the key, and DI finds the right class automatically
+        var fedExStrategy = serviceProvider.GetRequiredKeyedService<IShippingCostStrategy>(anotherOption);
+
+        Order fedExOrder = new Order(
+            anotherOption, 
             dummyAddr, 
             dummyAddr, 
-            new ShippingCostStrategyForUPS()
+            fedExStrategy
         );
 
-        try
-        {
-            Console.WriteLine($"Invalid Order Cost: {invalidOrder.cost}");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine("\n[Error Caught]: " + ex.Message);
-        }
+        Console.WriteLine($"Valid Order Cost ({anotherOption}): {fedExOrder.cost}");
     }
   //shipping class -change method -change the cost-each ethod has it's own strategy for cost 
   //adress - shipping options -order(get )
@@ -113,7 +128,6 @@ public class HelloWorld
     {
         public double CalcShippingCost(Order order)
         {
-            // CHECK
             if (order.ShippingOptions != ShippingOptions.fedex)
             {
                 throw new InvalidOperationException("Strategy Mismatch: You selected FedEx Strategy, but the Order is marked as " + order.ShippingOptions);
