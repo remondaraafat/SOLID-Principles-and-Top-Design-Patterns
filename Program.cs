@@ -1,110 +1,89 @@
 ﻿using System.Text;
 using System;
 
-public class HelloWorld
+namespace SingletonDemo
 {
-    public static void Main(string[] args)
+    class Program
     {
-        Console.WriteLine("--- Media Player State Pattern ---");
-
-        Player player = new Player();
-
-        player.PressPause(); 
-
-        player.PressPlay();
-
-        player.PressPause();
-
-        player.PressPlay();
-
-        player.PressStop();
-    }
-    public class Player
-    {
-        private IPlayerState _state;
-        public Player()
+        static void Main(string[] args)
         {
-            _state = new StoppedState();
-        }
-        public void SetState(IPlayerState state)
-        {
-            _state = state;
-        }
-        public void PressPlay()
-        {
-            _state.Play(this);
-        }
+            Console.WriteLine("--- Testing EAGER Singleton ---");
 
-        public void PressPause()
-        {
-            _state.Pause(this);
-        }
+            // 1. Get the instance 
+            // (Matching the class name defined below)
+            var eager1 = NumberGeneratorEagerInstanciation.Instance;
+            var eager2 = NumberGeneratorEagerInstanciation.Instance;
 
-        public void PressStop()
-        {
-            _state.Stop(this);
+            // 2. Prove state is shared
+            // (Fixed method casing to GetNextNumber)
+            Console.WriteLine($"Eager Client 1 gets: {eager1.GetNextNumber()}");
+            Console.WriteLine($"Eager Client 2 gets: {eager2.GetNextNumber()}");
+
+            // 3. Prove they are literally the same object in memory
+            bool isSameEager = ReferenceEquals(eager1, eager2);
+            Console.WriteLine($"Are eager1 and eager2 the same object? {isSameEager}");
+
+
+            Console.WriteLine("\n--- Testing LAZY Singleton ---");
+
+            // 1. Get the instance
+            var lazy1 = NumberGeneratorLazyInstanciation.Instance;
+            var lazy2 = NumberGeneratorLazyInstanciation.Instance;
+
+            // 2. Prove state is shared
+            Console.WriteLine($"Lazy Client 1 gets: {lazy1.GetNextNumber()}");
+            Console.WriteLine($"Lazy Client 2 gets: {lazy2.GetNextNumber()}");
+
+            // 3. Prove they are the same object
+            bool isSameLazy = ReferenceEquals(lazy1, lazy2);
+            Console.WriteLine($"Are lazy1 and lazy2 the same object? {isSameLazy}");
         }
     }
-    public interface IPlayerState
+    public class NumberGeneratorEagerInstanciation
     {
-        void Play(Player player);
-        void Pause(Player player);
-        void Stop(Player player);
-    }
-    public class StoppedState : IPlayerState
-    {
-        public void Play(Player player)
-        {
-            Console.WriteLine("Starting Player...");
-            player.SetState(new PlayingState());
-        }
+        private static readonly NumberGeneratorEagerInstanciation _instance = new();
+        private int number = 1;
 
-        public void Pause(Player player)
+        private NumberGeneratorEagerInstanciation() { }
+        public static NumberGeneratorEagerInstanciation Instance
         {
-            Console.WriteLine("Error: Cannot pause. Player is currently stopped.");
+            get
+            {
+                return _instance;
+            }
         }
-
-        public void Stop(Player player)
+        public int GetNextNumber()
         {
-            Console.WriteLine("Error: Already stopped.");
+            return number++;
         }
     }
-    public class PlayingState : IPlayerState
+    public class NumberGeneratorLazyInstanciation
     {
-        public void Play(Player player)
+        private static NumberGeneratorLazyInstanciation _instance;
+        private static readonly object _lock = new object();
+        private int number = 1;
+        private NumberGeneratorLazyInstanciation() { }
+        public static NumberGeneratorLazyInstanciation Instance
         {
-            Console.WriteLine("Error: Already playing.");
+            get
+            {
+                if (_instance == null)
+                {
+                    lock (_lock)
+                    {
+                        if (_instance == null)
+                        {
+                            _instance = new();
+                        }
+                    }
+                }
+                _instance = new();
+                return _instance;
+            }
         }
-
-        public void Pause(Player player)
+        public int GetNextNumber()
         {
-            Console.WriteLine("Pausing ...");
-            player.SetState(new PausedState());
-        }
-
-        public void Stop(Player player)
-        {
-            Console.WriteLine("Stopping ...");
-            player.SetState(new StoppedState());
-        }
-    }
-    public class PausedState : IPlayerState
-    {
-        public void Play(Player player)
-        {
-            Console.WriteLine("Resuming ...");
-            player.SetState(new PlayingState());
-        }
-
-        public void Pause(Player player)
-        {
-            Console.WriteLine("Error: Already paused.");
-        }
-
-        public void Stop(Player player)
-        {
-            Console.WriteLine("Stopping from pause...");
-            player.SetState(new StoppedState());
+            return number++;
         }
     }
 }
