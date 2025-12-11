@@ -1,91 +1,156 @@
 ﻿using System.Text;
 using System;
+using Microsoft.Extensions.DependencyInjection;
 
-namespace SingletonDemo
+public class HelloWorld
 {
-    class Program
+    public static void Main(string[] args)
     {
-        static void Main(string[] args)
-        {
-            Console.WriteLine("--- Testing EAGER Singleton ---");
+        //setup DI
+        var serviceCollection = new ServiceCollection();
 
-            // 1. Get the instance 
-            // (Matching the class name defined below)
-            var eager1 = NumberGeneratorEagerInstanciation.Instance;
-            var eager2 = NumberGeneratorEagerInstanciation.Instance;
+        // Register 
+        serviceCollection.AddKeyedTransient<IShippingCostStrategy, ShippingCostStrategyForUPS>(ShippingOptions.ups);
+        serviceCollection.AddKeyedTransient<IShippingCostStrategy, ShippingCostStrategyForFedEX>(ShippingOptions.fedex);
+        serviceCollection.AddKeyedTransient<IShippingCostStrategy, ShippingCostStrategyForPurulator>(ShippingOptions.purulator);
 
-            // 2. Prove state is shared
-            // (Fixed method casing to GetNextNumber)
-            Console.WriteLine($"Eager Client 1 gets: {eager1.GetNextNumber()}");
-            Console.WriteLine($"Eager Client 2 gets: {eager2.GetNextNumber()}");
+        // Build the provider
+        var serviceProvider = serviceCollection.BuildServiceProvider();
 
-            // 3. Prove they are literally the same object in memory
-            bool isSameEager = ReferenceEquals(eager1, eager2);
-            Console.WriteLine($"Are eager1 and eager2 the same object? {isSameEager}");
+        Console.WriteLine("--- DI Strategy Validation Test ---");
 
+        Address dummyAddr = new Address();
 
-            Console.WriteLine("\n--- Testing LAZY Singleton ---");
+        var selectedOption = ShippingOptions.ups;
 
-            // 1. Get the instance
-            var lazy1 = NumberGeneratorLazyInstanciation.Instance;
-            var lazy2 = NumberGeneratorLazyInstanciation.Instance;
+        // ASK DI: Give me the strategy linked to the key 'ShippingOptions.ups'
+        var upsStrategy = serviceProvider.GetRequiredKeyedService<IShippingCostStrategy>(selectedOption);
 
-            // 2. Prove state is shared
-            Console.WriteLine($"Lazy Client 1 gets: {lazy1.GetNextNumber()}");
-            Console.WriteLine($"Lazy Client 2 gets: {lazy2.GetNextNumber()}");
+        Order validOrder = new Order(
+            selectedOption, 
+            dummyAddr, 
+            dummyAddr, 
+            upsStrategy // DI gave us the correct class
+        );
 
-            // 3. Prove they are the same object
-            bool isSameLazy = ReferenceEquals(lazy1, lazy2);
-            Console.WriteLine($"Are lazy1 and lazy2 the same object? {isSameLazy}");
-        }
+        Console.WriteLine($"Valid Order Cost ({selectedOption}): {validOrder.cost}"); 
+
+        var anotherOption = ShippingOptions.fedex;
+        
+        // We just change the key, and DI finds the right class automatically
+        var fedExStrategy = serviceProvider.GetRequiredKeyedService<IShippingCostStrategy>(anotherOption);
+
+        Order fedExOrder = new Order(
+            anotherOption, 
+            dummyAddr, 
+            dummyAddr, 
+            fedExStrategy
+        );
+
+        Console.WriteLine($"Valid Order Cost ({anotherOption}): {fedExOrder.cost}");
     }
-    public class NumberGeneratorEagerInstanciation
+  //shipping class -change method -change the cost-each ethod has it's own strategy for cost 
+  //adress - shipping options -order(get )
+  public class Address
+{
+    public string? ContactName { get; set; }
+    public string? AddressLine { get; set; }
+    public string? City { get; set; }
+    public string? Region { get; set; }
+    public string? Country { get; set; }
+    public string? PostalCode { get; set; }
+}
+    public enum ShippingOptions
     {
-        private static readonly NumberGeneratorEagerInstanciation _instance = new();
-        private int number = 1;
-
-        private NumberGeneratorEagerInstanciation() { }
-        public static NumberGeneratorEagerInstanciation Instance
+        ups,
+        fedex,
+        purulator
+    }
+    public class Order
+    {
+        public ShippingOptions _shippingMethod;
+        public Address _destination;
+        public Address _origin;
+        public IShippingCostStrategy _costStrategy;
+        public Order(ShippingOptions shippingMethod,Address destination,Address origin,IShippingCostStrategy costStrategy)
+        {
+            _shippingMethod=shippingMethod;
+            _destination=destination;
+            _origin=origin;
+            _costStrategy=costStrategy;
+        }
+        public ShippingOptions ShippingOptions
         {
             get
             {
-                return _instance;
+                return _shippingMethod;
             }
         }
-        public int GetNextNumber()
-        {
-            return number++;
-        }
-    }
-    public class NumberGeneratorLazyInstanciation
-    {
-        private static NumberGeneratorLazyInstanciation _instance;
-        private static readonly object _lock = new object();
-        private int number = 1;
-        private NumberGeneratorLazyInstanciation() { }
-        public static NumberGeneratorLazyInstanciation Instance
+        public Address Origin
         {
             get
             {
-                if (_instance == null)
-                {
-                    lock (_lock)
-                    {
-                        if (_instance == null)
-                        {
-                            _instance = new();
-                        }
-                    }
-                }
-                _instance = new();
-                return _instance;
+                return _origin;
             }
         }
-        public int GetNextNumber()
+        public Address Destination
         {
-            return number++;
+            get
+            {
+                return _destination;
+            }
+        }
+        public Double cost
+        {
+            get
+            {
+                return _costStrategy.CalcShippingCost(this);
+            }
+        }
+    }
+    public interface IShippingCostStrategy
+    {
+        public double CalcShippingCost(Order order);
+    }
+    public class ShippingCostStrategyForUPS : IShippingCostStrategy
+    {
+        public double CalcShippingCost(Order order)
+        {
+            if (order.ShippingOptions != ShippingOptions.ups)
+            {
+                throw new InvalidOperationException("Strategy Mismatch: You selected UPS Strategy, but the Order is marked as " + order.ShippingOptions);
+            }
+            
+            return 7.25;
+        }
+    }
+    public class ShippingCostStrategyForFedEX : IShippingCostStrategy
+    {
+        public double CalcShippingCost(Order order)
+        {
+            if (order.ShippingOptions != ShippingOptions.fedex)
+            {
+                throw new InvalidOperationException("Strategy Mismatch: You selected FedEx Strategy, but the Order is marked as " + order.ShippingOptions);
+            }
+
+            return 9.25;
+        }
+    }
+
+    public class ShippingCostStrategyForPurulator : IShippingCostStrategy
+    {
+        public double CalcShippingCost(Order order)
+        {
+            // CHECK
+            if (order.ShippingOptions != ShippingOptions.purulator)
+            {
+                throw new InvalidOperationException("Strategy Mismatch: You selected Purulator Strategy, but the Order is marked as " + order.ShippingOptions);
+            }
+
+            return 5.00;
         }
     }
 }
+
 
 
